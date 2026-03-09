@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+  <meta name="mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <title>PrivacyScreen Preview</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100;300;400&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 100%; height: 100%;
+      overflow: hidden;
+      background: #000010;
+      font-family: 'Inter', sans-serif;
+      color: white;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: none;
+      user-select: none;
+    }
+
+    /* BG — your normal view */
+    #bg {
+      position: fixed; inset: 0;
+      background: radial-gradient(ellipse 80% 70% at 30% 40%, #120030 0%, transparent 60%),
+                  radial-gradient(ellipse 60% 60% at 75% 65%, #001030 0%, transparent 60%),
+                  #000010;
+      transition: opacity 0.06s linear;
+    }
+
+    /* BLACK OVERLAY — slams in when tilted */
+    #black {
+      position: fixed; inset: 0;
+      background: #000000;
+      opacity: 0;
+      transition: opacity 0.06s linear;
+      pointer-events: none;
+      z-index: 5;
+    }
+
+    /* CONTENT */
+    #content {
+      position: fixed; inset: 0; z-index: 10;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 8px;
+      transition: opacity 0.06s linear;
+    }
+
+    #clock {
+      font-size: clamp(80px, 25vw, 110px);
+      font-weight: 100;
+      letter-spacing: -4px;
+      line-height: 1;
+    }
+
+    #date {
+      font-size: 13px;
+      font-weight: 300;
+      letter-spacing: 4px;
+      color: rgba(255,255,255,0.35);
+      text-transform: uppercase;
+      margin-bottom: 60px;
+    }
+
+    /* Tilt bar */
+    #tilt-bar-wrap {
+      width: min(260px, 75vw);
+      display: flex; flex-direction: column; align-items: center; gap: 10px;
+    }
+    #tilt-label {
+      font-size: 10px; letter-spacing: 3px;
+      color: rgba(255,255,255,0.2);
+      text-transform: uppercase;
+    }
+    #tilt-track {
+      width: 100%; height: 3px;
+      background: rgba(255,255,255,0.08);
+      border-radius: 10px;
+      position: relative;
+    }
+    #tilt-thumb {
+      position: absolute;
+      top: 50%; transform: translate(-50%, -50%);
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      background: white;
+      box-shadow: 0 0 10px rgba(255,255,255,0.5);
+      left: 50%;
+      transition: left 0.06s linear, background 0.1s;
+    }
+    #tilt-center-mark {
+      position: absolute; left: 50%; top: 50%;
+      transform: translate(-50%,-50%);
+      width: 1px; height: 10px;
+      background: rgba(255,255,255,0.15);
+    }
+
+    /* Status */
+    #status {
+      font-size: 10px; letter-spacing: 3px;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.25);
+      transition: color 0.1s;
+    }
+    #status.active { color: #ff3344; }
+
+    /* Sim note */
+    #sim-note {
+      position: fixed; bottom: 30px; left: 0; right: 0;
+      text-align: center;
+      font-size: 10px; letter-spacing: 2px;
+      color: rgba(255,255,255,0.15);
+      text-transform: uppercase;
+      z-index: 20;
+    }
+  </style>
+</head>
+<body>
+
+<div id="bg"></div>
+<div id="black"></div>
+
+<div id="content">
+  <div id="clock">00:00</div>
+  <div id="date">Monday, March 9</div>
+
+  <div id="tilt-bar-wrap">
+    <div id="tilt-label">Tilt: <span id="tilt-val">0°</span></div>
+    <div id="tilt-track">
+      <div id="tilt-center-mark"></div>
+      <div id="tilt-thumb"></div>
+    </div>
+    <div id="status">Screen Visible</div>
+  </div>
+</div>
+
+<div id="sim-note" id="sim-note">Simulated on desktop · uses real gyro on phone</div>
+
+<script>
+  const THRESHOLD = 20; // degrees — same as App Inventor blocks
+
+  const blackEl   = document.getElementById('black');
+  const contentEl = document.getElementById('content');
+  const thumbEl   = document.getElementById('tilt-thumb');
+  const statusEl  = document.getElementById('status');
+  const tiltValEl = document.getElementById('tilt-val');
+  const clockEl   = document.getElementById('clock');
+  const dateEl    = document.getElementById('date');
+
+  // Clock
+  function tick() {
+    const n = new Date();
+    clockEl.textContent = n.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    dateEl.textContent  = n.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
+  }
+  tick(); setInterval(tick, 1000);
+
+  // Effect
+  function applyTilt(roll) {
+    const abs = Math.abs(roll);
+    const tilted = abs > THRESHOLD;
+
+    // Black overlay — instant snap like the APK will do
+    blackEl.style.opacity    = tilted ? '1' : '0';
+    contentEl.style.opacity  = tilted ? '0' : '1';
+
+    // Thumb position on bar (0–100%)
+    const pct = 50 + Math.max(-50, Math.min(50, roll / 60 * 50));
+    thumbEl.style.left = `${pct}%`;
+    thumbEl.style.background = tilted ? '#ff3344' : 'white';
+
+    // Label
+    tiltValEl.textContent = `${Math.round(roll)}°`;
+    statusEl.textContent  = tilted ? 'PRIVACY ON — Screen Black' : 'Screen Visible';
+    statusEl.className    = tilted ? 'active' : '';
+  }
+
+  // Real gyro (Android Chrome)
+  function startGyro() {
+    window.addEventListener('deviceorientation', (e) => {
+      if (simRAF) { cancelAnimationFrame(simRAF); simRAF = null; }
+      document.getElementById('sim-note').style.display = 'none';
+      applyTilt(e.gamma ?? 0);
+    }, true);
+  }
+
+  // Simulation for desktop preview
+  let simRAF = null, simT = 0;
+  function simulate() {
+    simT += 0.018;
+    // Swings left → right → past threshold on both sides
+    const roll = Math.sin(simT) * 38;
+    applyTilt(roll);
+    simRAF = requestAnimationFrame(simulate);
+  }
+
+  // iOS needs permission tap
+  if (typeof DeviceOrientationEvent !== 'undefined' &&
+      typeof DeviceOrientationEvent.requestPermission === 'function') {
+    DeviceOrientationEvent.requestPermission()
+      .then(r => { if (r === 'granted') startGyro(); else simulate(); })
+      .catch(() => simulate());
+  } else {
+    startGyro();
+    // fallback to sim if no gyro fires
+    const t = setTimeout(() => simulate(), 1000);
+    window.addEventListener('deviceorientation', () => clearTimeout(t), { once: true });
+  }
+</script>
+</body>
+</html>
